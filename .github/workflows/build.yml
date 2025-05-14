@@ -3,15 +3,13 @@ name: Build
 on:
   push:
     branches: [ "master" ]
+    tags: [ "v*" ]  # Triggers on tags starting with 'v'
   pull_request:
     branches: [ "master" ]
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-
-    env:
-      SCCACHE_GHA_ENABLED: "true"
 
     strategy:
       matrix:
@@ -20,6 +18,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Cache sccache
+      uses: actions/cache@v4.2.3
+      with:
+        path: ~/.cache/sccache
+        key: ${{ runner.os }}-sccache-${{ hashFiles('**/CMakeLists.txt') }}-${{ matrix.build_type }}
+        restore-keys: |
+          ${{ runner.os }}-sccache-
+        enableCrossOsArchive: true
+
+    - name: Set SCCACHE_DIR
+      run: echo "SCCACHE_DIR=$HOME/.cache/sccache" >> $GITHUB_ENV
 
     - if: matrix.os != 'windows-latest'
       name: Run sccache-cache
@@ -31,8 +41,7 @@ jobs:
         sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt install --yes --no-install-recommends gcc-multilib g++-multilib
-        
-    # ugh, should clean this up
+
     - if: matrix.os == 'ubuntu-latest'
       name: Build Linux
       run: |
@@ -65,8 +74,24 @@ jobs:
         cp $GITHUB_WORKSPACE/examples/inventory.txt $GITHUB_WORKSPACE/release/csgo_gc/
         cp $GITHUB_WORKSPACE/examples/unusual_loot_lists.txt $GITHUB_WORKSPACE/release/csgo_gc/
 
-    - name: Upload
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: csgo_gc-${{ matrix.os }}
         path: ${{ github.workspace }}/release
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: ./release
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./release/**/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
