@@ -1,4 +1,4 @@
-name: Auto Tag Minor
+name: Auto Tag Patch
 
 on:
   push:
@@ -17,16 +17,16 @@ jobs:
           latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
           echo "latest_tag=$latest" >> $GITHUB_OUTPUT
 
-      - name: Calculate next minor version
-        id: bump_minor
+      - name: Calculate next patch version
+        id: bump_patch
         run: |
           latest=${{ steps.get_tag.outputs.latest_tag }}
           if [[ "$latest" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             major=${BASH_REMATCH[1]}
             minor=${BASH_REMATCH[2]}
             patch=${BASH_REMATCH[3]}
-            new_minor=$((minor + 1))
-            new_tag="v${major}.${new_minor}.0"
+            new_patch=$((patch + 1))
+            new_tag="v${major}.${minor}.${new_patch}"
           else
             new_tag="v1.0.0"
           fi
@@ -36,5 +36,5 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag ${{ steps.bump_minor.outputs.new_tag }}
-          git push origin ${{ steps.bump_minor.outputs.new_tag }}
+          git tag ${{ steps.bump_patch.outputs.new_tag }}
+          git push origin ${{ steps.bump_patch.outputs.new_tag }}
