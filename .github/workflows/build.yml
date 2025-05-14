@@ -23,7 +23,7 @@ jobs:
       uses: actions/cache@v4.2.3
       with:
         path: ~/.cache/sccache
-        key: ${{ runner.os }}-sccache-${{ hashFiles('**/CMakeLists.txt') }}-${{ matrix.build_type }}
+        key: ${{ runner.os }}-sccache-${{ hashFiles('**/*', '!.github/workflows/**') }}-${{ matrix.build_type }}
         restore-keys: |
           ${{ runner.os }}-sccache-
         enableCrossOsArchive: true
