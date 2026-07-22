@@ -8,6 +8,8 @@ The moving dependencies were resolved at the upstream release time,
 | Dependency | Commit | Source |
 | --- | --- | --- |
 | protobuf | `2798a968c330de223b711e4fe504800280f333fb` | Existing upstream CMake pin |
+| google/benchmark | `5b7683f49e1e9223cf9927b24f6fd3d6bd82e3f8` | Protobuf gitlink; fetched but not built |
+| googletest | `5ec7f0c4a113e2f18ac2c6cc7df51ad6afc24081` | Protobuf gitlink; fetched but not built |
 | cryptopp-cmake | `866aceb8b13b6427a3c4541288ff412ad54f11ea` | `vendor/cryptopp-cmake` submodule |
 | Crypto++ | `fe62c6a03c69fb322faf282c6f69b0b0f0d965eb` | `vendor/cryptopp` submodule |
 | funchook | `b4991704add411ecbc492dae020f375124d51f45` | `vendor/funchook` submodule |
@@ -16,3 +18,7 @@ The moving dependencies were resolved at the upstream release time,
 Windows x86 selects diStorm through funchook. Capstone, Zydis, and cryptopp-pem
 are not selected or fetched. Crypto++ is supplied through `CRYPTOPP_SOURCES`;
 diStorm is supplied through CMake's `FETCHCONTENT_SOURCE_DIR_DISTORM` override.
+
+Crypto++ optional assembly is disabled with `CRYPTOPP_DISABLE_ASM=ON`. This
+reduces the code and audit surface and avoids a MASM object-path limitation when
+the immutable Crypto++ checkout is kept outside the wrapper source directory.

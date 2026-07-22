@@ -77,6 +77,8 @@ FetchContent_MakeAvailable(protobuf)
 
 option(CRYPTOPP_BUILD_TESTING "Build library tests" OFF)
 option(CRYPTOPP_INSTALL "Generate the install target for this project." OFF)
+set(CRYPTOPP_DISABLE_ASM ON CACHE BOOL
+    "Use auditable portable Crypto++ code instead of optional assembly" FORCE)
 set(CRYPTOPP_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/cryptopp"
     CACHE PATH "Pinned Crypto++ source checkout" FORCE)
