@@ -77,13 +77,11 @@ FetchContent_MakeAvailable(protobuf)
 
 option(CRYPTOPP_BUILD_TESTING "Build library tests" OFF)
 option(CRYPTOPP_INSTALL "Generate the install target for this project." OFF)
-option(CRYPTOPP_USE_MASTER_BRANCH "Get crypto++ from the master branch, not from a release tag" ON)
+set(CRYPTOPP_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/cryptopp"
+    CACHE PATH "Pinned Crypto++ source checkout" FORCE)
 
-FetchContent_Declare(cryptopp-cmake
-	GIT_REPOSITORY https://github.com/abdes/cryptopp-cmake
-	GIT_SHALLOW TRUE)
-
-FetchContent_MakeAvailable(cryptopp-cmake)
+add_subdirectory(vendor/cryptopp-cmake)
 
 if (MSVC)
     # shut the fuck up
@@ -98,8 +96,8 @@ option(FUNCHOOK_BUILD_SHARED "build shared library" OFF)
 option(FUNCHOOK_BUILD_TESTS "Build tests" OFF)
 option(FUNCHOOK_INSTALL "Install Funchook" OFF)
 
-FetchContent_Declare(funchook
-	GIT_REPOSITORY https://github.com/kubo/funchook
-	GIT_SHALLOW TRUE)
+set(FETCHCONTENT_SOURCE_DIR_DISTORM
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/distorm"
+    CACHE PATH "Pinned diStorm source checkout" FORCE)
 
-FetchContent_MakeAvailable(funchook)
+add_subdirectory(vendor/funchook)
