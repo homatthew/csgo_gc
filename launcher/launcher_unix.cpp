@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdlib.h>
 #include <dlfcn.h>
 
 #if defined(__APPLE__)
@@ -15,7 +16,7 @@
 #define SYMBOL_NAME "LauncherMain"
 #endif
 
-typedef int(*LauncherMain_t)(int argc, char **argv);
+typedef int (*LauncherMain_t)(int argc, char **argv);
 typedef void (*InstallGC_t)(bool dedicated);
 
 static void ErrorMessageBox(const char *format, ...)
@@ -48,20 +49,7 @@ static void ErrorMessageBox(const char *format, ...)
 
     CFRelease(messageString);
 #else
-    // display a message box if we can
-    // i don't want to link to sdl2 directly nor do i want it as a build dependency
-    void *libSDL2 = dlopen("libSDL2.so", RTLD_LAZY);
-    if (libSDL2)
-    {
-        using SDL_ShowSimpleMessageBox_t = int (*)(unsigned, const char *, const char *, void *);
-        SDL_ShowSimpleMessageBox_t fuction = reinterpret_cast<SDL_ShowSimpleMessageBox_t>(dlsym(libSDL2, "SDL_ShowSimpleMessageBox"));
-        if (fuction)
-        {
-            fuction(0, "csgo_gc", message, nullptr);
-        }
-
-        dlclose(libSDL2);
-    }
+    fprintf(stderr, "csgo_gc: %s\n", message);
 #endif
 }
 
@@ -86,6 +74,26 @@ static void *LoadModuleAndFindSymbol(const char *modulePath, const char *symbol)
 
 int main(int argc, char **argv)
 {
+    // Add bin dir to LD_LIBRARY_PATH so Vulkan libraries and other dependencies can be found
+    {
+        const char *binPath = "bin/" GC_LIB_DIR;
+        const char *currentPath = getenv("LD_LIBRARY_PATH");
+        if (currentPath)
+        {
+            char *newPath = nullptr;
+            asprintf(&newPath, "%s:%s", binPath, currentPath);
+            if (newPath)
+            {
+                setenv("LD_LIBRARY_PATH", newPath, 1);
+                free(newPath);
+            }
+        }
+        else
+        {
+            setenv("LD_LIBRARY_PATH", binPath, 1);
+        }
+    }
+
     const char *modulePath = "bin/" GC_LIB_DIR "/" LAUNCHER_LIB GC_LIB_SUFFIX GC_LIB_EXTENSION;
     LauncherMain_t LauncherMain = (LauncherMain_t)LoadModuleAndFindSymbol(modulePath, SYMBOL_NAME);
     if (!LauncherMain)
@@ -94,7 +102,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    modulePath = "csgo_gc/" GC_LIB_DIR "/" "csgo_gc" GC_LIB_EXTENSION;
+    modulePath = "csgo_gc/" GC_LIB_DIR "/"
+                 "csgo_gc" GC_LIB_EXTENSION;
     InstallGC_t InstallGC = (InstallGC_t)LoadModuleAndFindSymbol(modulePath, "InstallGC");
     if (!InstallGC)
     {

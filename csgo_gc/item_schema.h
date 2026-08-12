@@ -1,6 +1,9 @@
 #pragma once
 
+#include "gc_const_csgo.h"
+
 class KeyValue;
+class Random;
 
 enum class AttributeType
 {
@@ -12,7 +15,7 @@ enum class AttributeType
 class AttributeInfo
 {
 public:
-    AttributeInfo(const KeyValue &key);
+    explicit AttributeInfo(const KeyValue &key);
 
     AttributeType m_type;
 };
@@ -20,19 +23,25 @@ public:
 class ItemInfo
 {
 public:
-    ItemInfo(uint32_t defIndex);
+    explicit ItemInfo(uint32_t defIndex);
 
     uint32_t m_defIndex;
     std::string m_name;
     uint32_t m_rarity;
     uint32_t m_quality;
+    uint32_t m_level;
     uint32_t m_supplyCrateSeries; // cases only
+
+    // kludge for coupons so we can buy stuff from the store
+    bool m_isCoupon;
+    std::string m_lootListName;
+    bool m_willProduceStatTrak;
 };
 
 class PaintKitInfo
 {
 public:
-    PaintKitInfo(const KeyValue &key);
+    explicit PaintKitInfo(const KeyValue &key);
 
     uint32_t m_defIndex;
     uint32_t m_rarity;
@@ -40,11 +49,10 @@ public:
     float m_maxFloat;
 };
 
-
 class StickerKitInfo
 {
 public:
-    StickerKitInfo(const KeyValue &key);
+    explicit StickerKitInfo(const KeyValue &key);
 
     uint32_t m_defIndex;
     uint32_t m_rarity;
@@ -70,6 +78,9 @@ enum LootListItemType
 
 struct LootListItem
 {
+    // for case opening: returns RarityUnusual for items of unusual quality
+    uint32_t CaseRarity() const;
+
     const ItemInfo *itemInfo{};
     LootListItemType type{ LootListItemNoAttribute };
 
@@ -93,14 +104,6 @@ struct LootList
     bool isUnusual{};
 };
 
-// mikkotodo unfuck
-enum class GenerateStatTrak
-{
-    No,
-    Yes,
-    Maybe
-};
-
 class ItemSchema
 {
 public:
@@ -114,8 +117,19 @@ public:
     bool SetAttributeUint32(CSOEconItemAttribute *attribute, uint32_t value) const;
     bool SetAttributeString(CSOEconItemAttribute *attribute, std::string_view value) const;
 
-    // case opening
-    bool SelectItemFromCrate(const CSOEconItem &crate, CSOEconItem &item);
+    // for case opening
+    const LootList *GetCrateLootList(uint32_t crateDefIndex) const;
+
+    // for case opening FIXME: do we want to keep this here???
+    bool CreateItemFromLootListItem(Random &random,
+        const LootListItem &lootListItem,
+        bool statTrak,
+        ItemOrigin origin,
+        UnacknowledgedType unacknowledgedType,
+        CSOEconItem &item) const;
+
+    // item creation: id and account id not set, needs to be done by the caller
+    bool CreateItem(uint32_t defIndex, ItemOrigin origin, UnacknowledgedType unacknowledgedType, CSOEconItem &econItem) const;
 
 public:
     // these could be parsed from the item schema but reduce code complexity by hardcoding them
@@ -211,7 +225,6 @@ public:
         AttributeSprayTintId = 233,
     };
 
-
 private:
     void ParseItems(const KeyValue *itemsKey, const KeyValue *prefabsKey);
     void ParseItemRecursive(ItemInfo &info, const KeyValue &itemKey, const KeyValue *prefabsKey);
@@ -230,9 +243,6 @@ private:
     StickerKitInfo *StickerKitInfoByName(std::string_view name);
     PaintKitInfo *PaintKitInfoByName(std::string_view name);
     MusicDefinitionInfo *MusicDefinitionInfoByName(std::string_view name);
-
-    // case opening
-    bool EconItemFromLootListItem(const LootListItem &lootListItem, CSOEconItem &item, GenerateStatTrak statTrak);
 
     std::unordered_map<uint32_t, ItemInfo> m_itemInfo;
     std::unordered_map<uint32_t, AttributeInfo> m_attributeInfo;

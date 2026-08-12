@@ -1,11 +1,10 @@
 #include "stdafx.h"
 #include "inventory.h"
+#include "case_opening.h"
+#include "config.h"
 #include "gc_const.h"
 #include "keyvalue.h"
 #include "random.h"
-
-// keys, cases, stickers...
-//#define DESTORY_USED_ITEMS
 
 constexpr const char *InventoryFilePath = "csgo_gc/inventory.txt";
 
@@ -88,7 +87,7 @@ uint32_t Inventory::AccountId() const
     return m_steamId & 0xffffffff;
 }
 
-CSOEconItem &Inventory::CreateItem(uint32_t highItemId, CSOEconItem *copyFrom)
+CSOEconItem &Inventory::AllocateItem(uint32_t highItemId)
 {
     // Players fuck up their inventory files constantly and end up with item id collisions...
     // This doesn't return until the item id is unique for this session, try with the provided
@@ -100,7 +99,7 @@ CSOEconItem &Inventory::CreateItem(uint32_t highItemId, CSOEconItem *copyFrom)
         highItemId = m_lastHighItemId;
     }
 
-    for (; ; highItemId++)
+    for (;; highItemId++)
     {
         uint64_t itemId = ComposeItemId(AccountId(), highItemId);
         if ((itemId & ItemIdDefaultItemMask) == ItemIdDefaultItemMask)
@@ -111,8 +110,8 @@ CSOEconItem &Inventory::CreateItem(uint32_t highItemId, CSOEconItem *copyFrom)
             continue;
         }
 
-        auto result = m_items.try_emplace(itemId);
-        if (!result.second)
+        auto [it, inserted] = m_items.try_emplace(itemId);
+        if (!inserted)
         {
             // item id collision
             assert(false);
@@ -125,18 +124,36 @@ CSOEconItem &Inventory::CreateItem(uint32_t highItemId, CSOEconItem *copyFrom)
         }
 
         // ok
-        CSOEconItem &item = result.first->second;
-
-        if (copyFrom)
-        {
-            item = *copyFrom;
-        }
+        CSOEconItem &item = it->second;
 
         item.set_id(itemId);
         item.set_account_id(AccountId());
 
         return item;
     }
+}
+
+CSOEconItem &Inventory::CreateItem(const CSOEconItem &copyFrom)
+{
+    CSOEconItem &item = AllocateItem(0);
+
+    // shitty but what can you do
+    uint64_t itemId = item.id();
+    uint32_t accountId = item.account_id();
+
+    item = copyFrom;
+
+    item.set_id(itemId);
+    item.set_account_id(accountId);
+
+    return item;
+}
+
+CSOEconItem &Inventory::CreateItem(uint32_t defIndex, ItemOrigin origin, UnacknowledgedType unacknowledgedType)
+{
+    CSOEconItem &item = AllocateItem(0);
+    m_itemSchema.CreateItem(defIndex, origin, unacknowledgedType, item);
+    return item;
 }
 
 void Inventory::ReadFromFile()
@@ -155,7 +172,7 @@ void Inventory::ReadFromFile()
         for (const KeyValue &itemKey : *itemsKey)
         {
             uint32_t highItemId = FromString<uint32_t>(itemKey.Name());
-            CSOEconItem &item = CreateItem(highItemId);
+            CSOEconItem &item = AllocateItem(highItemId);
             ReadItem(itemKey, item);
         }
     }
@@ -304,6 +321,11 @@ void Inventory::BuildCacheSubscription(CMsgSOCacheSubscribed &message, int level
 
         for (const auto &pair : m_items)
         {
+            if (server && !pair.second.equipped_state_size())
+            {
+                continue;
+            }
+
             object->add_object_data(pair.second.SerializeAsString());
         }
     }
@@ -399,7 +421,7 @@ bool Inventory::EquipItem(uint64_t itemId, uint32_t classId, uint32_t slotId, CM
         UnequipItem(classId, slotId, update);
 
         Platform::Print("EquipItem %llu class %d slot %d\n", itemId, classId,
-                        slotId);
+            slotId);
 
         CSOEconItem &item = it->second;
 
@@ -411,6 +433,19 @@ bool Inventory::EquipItem(uint64_t itemId, uint32_t classId, uint32_t slotId, CM
 
         return true;
     }
+}
+
+bool Inventory::RemoveItem(uint64_t itemId, CMsgSOSingleObject &response)
+{
+    auto it = m_items.find(itemId);
+    if (it == m_items.end())
+    {
+        assert(false);
+        return false;
+    }
+
+    DestroyItem(it, response);
+    return true;
 }
 
 bool Inventory::UseItem(uint64_t itemId,
@@ -432,7 +467,7 @@ bool Inventory::UseItem(uint64_t itemId,
     }
 
     // create an unsealed spray based on the sealed one
-    CSOEconItem &unsealed = CreateItem(0, &it->second);
+    CSOEconItem &unsealed = CreateItem(it->second);
     unsealed.set_def_index(ItemSchema::ItemSprayPaint);
 
     // remove the sealed spray from our inventory
@@ -467,14 +502,17 @@ bool Inventory::UnlockCrate(uint64_t crateId,
         return false;
     }
 
+    // CASE OPENING
+    CaseOpening caseOpening{ m_itemSchema, m_random };
+
     CSOEconItem temp;
-    if (!m_itemSchema.SelectItemFromCrate(crate->second, temp))
+    if (!caseOpening.SelectItemFromCrate(crate->second, temp))
     {
         assert(false);
         return false;
     }
 
-    CSOEconItem &item = CreateItem(0, &temp);
+    CSOEconItem &item = CreateItem(temp);
 
     ToSingleObject(newItem, item);
 
@@ -483,16 +521,17 @@ bool Inventory::UnlockCrate(uint64_t crateId,
     notification.set_request(k_EGCItemCustomizationNotification_UnlockCrate);
 
     // remove the crate
-#ifdef DESTORY_USED_ITEMS
-    DestroyItem(crate, destroyCrate);
-    
-    // remove the key if one was used (yes, we don't validate keys...)
-    auto key = m_items.find(keyId);
-    if (key != m_items.end())
+    if (GetConfig().DestroyUsedItems())
     {
-        DestroyItem(key, destroyKey);
+        DestroyItem(crate, destroyCrate);
+
+        // remove the key if one was used (yes, we don't validate keys...)
+        auto key = m_items.find(keyId);
+        if (key != m_items.end())
+        {
+            DestroyItem(key, destroyKey);
+        }
     }
-#endif
 
     return true;
 }
@@ -746,15 +785,7 @@ bool Inventory::ApplySticker(const CMsgApplySticker &message,
 
     if (message.baseitem_defidx())
     {
-        // mikkotodo don't hardcode these... also some of these fields are wrong...
-        item = &CreateItem(0);
-        //item->set_inventory(0);
-        item->set_def_index(message.baseitem_defidx());
-        item->set_quantity(1);
-        item->set_level(1);
-        item->set_quality(ItemSchema::QualityNormal);
-        //item->set_origin(0);
-        item->set_rarity(ItemSchema::RarityDefault);
+        item = &CreateItem(message.baseitem_defidx(), ItemOriginBaseItem, UnacknowledgedInvalid);
     }
     else
     {
@@ -808,9 +839,10 @@ bool Inventory::ApplySticker(const CMsgApplySticker &message,
     ToSingleObject(update, *item);
 
     // remove the sticker
-#ifdef DESTORY_USED_ITEMS
-    DestroyItem(sticker, destroy);
-#endif
+    if (GetConfig().DestroyUsedItems())
+    {
+        DestroyItem(sticker, destroy);
+    }
 
     // notification, if any
     notification.add_item_id(item->id());
@@ -826,7 +858,7 @@ static void RemoveStickerAttributes(CSOEconItem &item, uint32_t slot)
     uint32_t attributeStickerId = ItemSchema::AttributeStickerId0 + (slot * 4);
     uint32_t attributeStickerWear = ItemSchema::AttributeStickerWear0 + (slot * 4);
 
-    for (auto attrib = item.mutable_attribute()->begin(); attrib != item.mutable_attribute()->end(); )
+    for (auto attrib = item.mutable_attribute()->begin(); attrib != item.mutable_attribute()->end();)
     {
         if (attrib->def_index() == attributeStickerId
             || attrib->def_index() == attributeStickerWear)
@@ -972,16 +1004,17 @@ bool Inventory::NameItem(uint64_t nameTagId,
 
     ToSingleObject(update, it->second);
 
-#ifdef DESTORY_USED_ITEMS
-    auto tag = m_items.find(nameTagId);
-    if (tag == m_items.end())
+    if (GetConfig().DestroyUsedItems())
     {
-        assert(false);
-        return false;
-    }
+        auto tag = m_items.find(nameTagId);
+        if (tag == m_items.end())
+        {
+            assert(false);
+            return false;
+        }
 
-    DestroyItem(tag, destroy);
-#endif
+        DestroyItem(tag, destroy);
+    }
 
     notification.add_item_id(it->second.id());
     notification.set_request(k_EGCItemCustomizationNotification_NameItem);
@@ -996,30 +1029,23 @@ bool Inventory::NameBaseItem(uint64_t nameTagId,
     CMsgSOSingleObject &destroy,
     CMsgGCItemCustomizationNotification &notification)
 {
-    // mikkotodo CreateBaseItem and use that for stickers too
-    CSOEconItem &item = CreateItem(0);
-    //item.set_inventory(0);
-    item.set_def_index(defIndex);
-    item.set_quantity(1);
-    item.set_level(1);
-    item.set_quality(ItemSchema::QualityNormal);
-    //item.set_origin(0);
-    item.set_rarity(ItemSchema::RarityDefault);
+    CSOEconItem &item = CreateItem(defIndex, ItemOriginBaseItem, UnacknowledgedInvalid);
 
     item.mutable_custom_name()->assign(name);
 
     ToSingleObject(create, item);
 
-#ifdef DESTORY_USED_ITEMS
-    auto tag = m_items.find(nameTagId);
-    if (tag == m_items.end())
+    if (GetConfig().DestroyUsedItems())
     {
-        assert(false);
-        return false;
-    }
+        auto tag = m_items.find(nameTagId);
+        if (tag == m_items.end())
+        {
+            assert(false);
+            return false;
+        }
 
-    DestroyItem(tag, destroy);
-#endif
+        DestroyItem(tag, destroy);
+    }
 
     notification.add_item_id(item.id()); // mikkotodo def index???
     notification.set_request(k_EGCItemCustomizationNotification_NameBaseItem);
@@ -1057,6 +1083,16 @@ bool Inventory::RemoveItemName(uint64_t itemId,
     }
 
     return true;
+}
+
+uint64_t Inventory::PurchaseItem(uint32_t defIndex, std::vector<CMsgSOSingleObject> &update)
+{
+    CSOEconItem &item = CreateItem(defIndex, ItemOriginPurchased, UnacknowledgedPurchased);
+
+    CMsgSOSingleObject &single = update.emplace_back();
+    ToSingleObject(single, item);
+
+    return item.id();
 }
 
 bool Inventory::UnequipItem(uint64_t itemId, CMsgSOMultipleObjects &update)

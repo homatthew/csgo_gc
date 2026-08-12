@@ -1,7 +1,8 @@
 #pragma once
 
-#include "item_schema.h"
 #include "gc_const_csgo.h"
+#include "item_schema.h"
+#include "random.h"
 
 class KeyValue;
 
@@ -16,6 +17,8 @@ public:
     void BuildCacheSubscription(CMsgSOCacheSubscribed &message, int level, bool server);
 
     bool EquipItem(uint64_t itemId, uint32_t classId, uint32_t slotId, CMsgSOMultipleObjects &update);
+
+    bool RemoveItem(uint64_t itemId, CMsgSOSingleObject &destroy);
 
     bool UseItem(uint64_t itemId,
         CMsgSOSingleObject &destroy,
@@ -65,12 +68,20 @@ public:
         CMsgSOSingleObject &destroy,
         CMsgGCItemCustomizationNotification &notification);
 
+    // returns the item id and adds the item to the provided CMsgSOMultipleObjects
+    // on failure returns 0 and does nothing
+    uint64_t PurchaseItem(uint32_t defIndex, std::vector<CMsgSOSingleObject> &update);
+
 private:
     uint32_t AccountId() const;
 
-    // sets id and account_id fields
+    // allocates an empty item, sets id and account_id fields
     // pass zero as highItemId to generate a new one
-    CSOEconItem &CreateItem(uint32_t highItemId, CSOEconItem *copyFrom = nullptr);
+    CSOEconItem &AllocateItem(uint32_t highItemId);
+
+    // create a new item of a specific type
+    CSOEconItem &CreateItem(const CSOEconItem &copyFrom);
+    CSOEconItem &CreateItem(uint32_t defIndex, ItemOrigin origin, UnacknowledgedType unacknowledgedType);
 
     void ReadFromFile();
     void ReadItem(const KeyValue &itemKey, CSOEconItem &item) const;
@@ -114,6 +125,7 @@ private:
 
     const uint64_t m_steamId;
     ItemSchema m_itemSchema;
+    Random m_random;
     uint32_t m_lastHighItemId{};
     ItemMap m_items;
     std::vector<CSOEconDefaultEquippedDefinitionInstanceClient> m_defaultEquips;

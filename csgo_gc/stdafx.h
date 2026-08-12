@@ -3,10 +3,15 @@
 #include <assert.h>
 
 #include <array>
+#include <atomic>
 #include <charconv>
+#include <condition_variable>
+#include <optional>
 #include <queue>
 #include <random>
 #include <string>
+#include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -17,10 +22,7 @@
 #include "engine_gcmessages.pb.h"
 #include "gcsdk_gcmessages.pb.h"
 #include "gcsystemmsgs.pb.h"
+#include "steammessages.pb.h"
 
-// debug session
-// mikkotodo wtf is the comment above and why is this here
-namespace Platform
-{
-void Print(const char *format, ...);
-}
+// used in many files for logging
+#include "platform.h"

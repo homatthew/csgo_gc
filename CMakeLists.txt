@@ -43,7 +43,7 @@ else()
     add_compile_options(-fpic -fvisibility=hidden)
 
     if (NOT APPLE)
-        add_link_options(-Wl,--no-undefined)
+        add_link_options(-Wl,--no-undefined -z noexecstack)
     endif()
 endif()
 
@@ -64,7 +64,11 @@ option(protobuf_BUILD_PROTOC_BINARIES "Build libprotoc and protoc compiler" OFF)
 option(protobuf_BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 option(protobuf_WITH_ZLIB "Build with zlib support" OFF)
 
-FetchContent_Declare(protobuf GIT_REPOSITORY https://github.com/protocolbuffers/protobuf GIT_TAG 21.x GIT_SHALLOW TRUE)
+FetchContent_Declare(protobuf
+	GIT_REPOSITORY https://github.com/protocolbuffers/protobuf
+	GIT_TAG 2798a968c330de223b711e4fe504800280f333fb
+	GIT_SHALLOW TRUE)
+
 FetchContent_MakeAvailable(protobuf)
 
 #-------------------------------------------------
@@ -73,8 +77,12 @@ FetchContent_MakeAvailable(protobuf)
 
 option(CRYPTOPP_BUILD_TESTING "Build library tests" OFF)
 option(CRYPTOPP_INSTALL "Generate the install target for this project." OFF)
+option(CRYPTOPP_USE_MASTER_BRANCH "Get crypto++ from the master branch, not from a release tag" ON)
 
-FetchContent_Declare(cryptopp-cmake GIT_REPOSITORY https://github.com/abdes/cryptopp-cmake GIT_SHALLOW TRUE)
+FetchContent_Declare(cryptopp-cmake
+	GIT_REPOSITORY https://github.com/abdes/cryptopp-cmake
+	GIT_SHALLOW TRUE)
+
 FetchContent_MakeAvailable(cryptopp-cmake)
 
 if (MSVC)
@@ -90,5 +98,8 @@ option(FUNCHOOK_BUILD_SHARED "build shared library" OFF)
 option(FUNCHOOK_BUILD_TESTS "Build tests" OFF)
 option(FUNCHOOK_INSTALL "Install Funchook" OFF)
 
-FetchContent_Declare(funchook GIT_REPOSITORY https://github.com/kubo/funchook GIT_SHALLOW TRUE)
+FetchContent_Declare(funchook
+	GIT_REPOSITORY https://github.com/kubo/funchook
+	GIT_SHALLOW TRUE)
+
 FetchContent_MakeAvailable(funchook)

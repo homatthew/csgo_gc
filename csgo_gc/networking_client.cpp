@@ -2,17 +2,17 @@
 #include "networking_client.h"
 #include "gc_client.h"
 
-NetworkingClient::NetworkingClient(ClientGC *clientGC)
-    : m_clientGC{ clientGC }
+NetworkingClient::NetworkingClient(ISteamNetworkingMessages *networkingMessages)
+    : m_networkingMessages{ networkingMessages }
     , m_sessionRequest{ this, &NetworkingClient::OnSessionRequest }
     , m_sessionFailed{ this, &NetworkingClient::OnSessionFailed }
 {
 }
 
-void NetworkingClient::Update()
+void NetworkingClient::Update(ClientGC *gc)
 {
     SteamNetworkingMessage_t *message;
-    while (SteamNetworkingMessages()->ReceiveMessagesOnChannel(NetMessageChannel, &message, 1))
+    while (m_networkingMessages->ReceiveMessagesOnChannel(NetMessageChannel, &message, 1))
     {
         uint64_t steamId = message->m_identityPeer.GetSteamID64();
 
@@ -25,7 +25,7 @@ void NetworkingClient::Update()
             continue;
         }
 
-        if (HandleMessage(steamId, messageRead))
+        if (HandleMessage(gc, steamId, messageRead))
         {
             // that was an internal message
             message->Release();
@@ -41,7 +41,7 @@ void NetworkingClient::Update()
         }
 
         // let the gc have a whack at it
-        m_clientGC->HandleNetMessage(messageRead);
+        gc->PostToGC(GCEvent::NetMessage, 0, message->GetData(), message->GetSize());
 
         message->Release();
     }
@@ -61,7 +61,7 @@ static bool ValidateTicket(std::unordered_map<uint32_t, AuthTicket> &tickets, ui
     return false;
 }
 
-bool NetworkingClient::HandleMessage(uint64_t steamId, GCMessageRead &message)
+bool NetworkingClient::HandleMessage(ClientGC *gc, uint64_t steamId, GCMessageRead &message)
 {
     if (message.IsProtobuf())
     {
@@ -88,7 +88,7 @@ bool NetworkingClient::HandleMessage(uint64_t steamId, GCMessageRead &message)
 
         Platform::Print("NetworkingClient: sending socache to %llu\n", steamId);
         m_serverSteamId = steamId;
-        m_clientGC->SendSOCacheToGameSever();
+        gc->PostToGC(GCEvent::SOCacheRequest, 0, nullptr, 0);
 
         return true;
     }
@@ -96,7 +96,7 @@ bool NetworkingClient::HandleMessage(uint64_t steamId, GCMessageRead &message)
     return false;
 }
 
-void NetworkingClient::SendMessage(const GCMessageWrite &message)
+void NetworkingClient::SendMessage(const void *data, uint32_t size)
 {
     if (!m_serverSteamId)
     {
@@ -108,10 +108,10 @@ void NetworkingClient::SendMessage(const GCMessageWrite &message)
     SteamNetworkingIdentity identity;
     identity.SetSteamID64(m_serverSteamId);
 
-    [[maybe_unused]] EResult result = SteamNetworkingMessages()->SendMessageToUser(
+    [[maybe_unused]] EResult result = m_networkingMessages->SendMessageToUser(
         identity,
-        message.Data(),
-        message.Size(),
+        data,
+        size,
         NetMessageSendFlags,
         NetMessageChannel);
 
@@ -121,10 +121,9 @@ void NetworkingClient::SendMessage(const GCMessageWrite &message)
 void NetworkingClient::SetAuthTicket(uint32_t handle, const void *data, uint32_t size)
 {
     AuthTicket &ticket = m_tickets[handle];
-
     ticket.steamId = 0;
-    ticket.buffer.resize(size);
-    memcpy(ticket.buffer.data(), data, size);
+    const uint8_t *bytes = reinterpret_cast<const uint8_t *>(data);
+    ticket.buffer.assign(bytes, bytes + size);
 }
 
 void NetworkingClient::ClearAuthTicket(uint32_t handle)
@@ -144,7 +143,7 @@ void NetworkingClient::ClearAuthTicket(uint32_t handle)
         // we had a session so close the connection
         SteamNetworkingIdentity identity;
         identity.SetSteamID64(it->second.steamId);
-        SteamNetworkingMessages()->CloseChannelWithUser(identity, NetMessageChannel);
+        m_networkingMessages->CloseChannelWithUser(identity, NetMessageChannel);
 
         // was this our current gameserver? if it was, clear it
         if (it->second.steamId == m_serverSteamId)
@@ -157,7 +156,7 @@ void NetworkingClient::ClearAuthTicket(uint32_t handle)
     m_tickets.erase(it);
 }
 
-void NetworkingClient::OnSessionRequest([[maybe_unused]] SteamNetworkingMessagesSessionRequest_t *param)
+void NetworkingClient::OnSessionRequest(SteamNetworkingMessagesSessionRequest_t *param)
 {
     if (!param->m_identityRemote.GetSteamID().BGameServerAccount())
     {
@@ -166,7 +165,7 @@ void NetworkingClient::OnSessionRequest([[maybe_unused]] SteamNetworkingMessages
     }
 
     // accept the connection, we should receive the k_EMsgNetworkConnect message
-    SteamNetworkingMessages()->AcceptSessionWithUser(param->m_identityRemote);
+    m_networkingMessages->AcceptSessionWithUser(param->m_identityRemote);
 }
 
 void NetworkingClient::OnSessionFailed(SteamNetworkingMessagesSessionFailed_t *param)

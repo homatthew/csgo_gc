@@ -1,6 +1,8 @@
 project(csgo_gc)
 
 add_library(csgo_gc SHARED
+    appid.cpp
+    case_opening.cpp
     config.cpp
     gc_client.cpp
     gc_message.cpp
@@ -13,7 +15,6 @@ add_library(csgo_gc SHARED
     main.cpp
     networking_client.cpp
     networking_server.cpp
-    random.cpp
     steam_hook.cpp)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -29,6 +30,8 @@ set_target_properties(csgo_gc PROPERTIES PREFIX "")
 if (MSVC)
     target_compile_options(csgo_gc PRIVATE /W4 /wd4244)
     target_compile_definitions(csgo_gc PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+    target_compile_options(csgo_gc PRIVATE -Wall -Wextra)
 endif()
 
 file(GLOB PROTOBUFS ../protobufs/*.cc)
@@ -41,7 +44,7 @@ target_link_libraries(csgo_gc PRIVATE
     funchook-static
     libprotobuf-lite
     steam_api)
-	
+
 # apple message box
 if (APPLE)
     target_link_libraries(csgo_gc PRIVATE "-framework Foundation")
