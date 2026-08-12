@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $LegacyAppId = '4465480'
-$ReleaseUrl = 'https://github.com/homatthew/csgo_gc/releases/download/continuous/csgo_gc-windows-latest.zip'
+$ReleaseUrl = 'https://github.com/homatthew/csgo_gc/releases/download/continuous/csgo_gc-windows.zip'
 $PersonalRoot = Join-Path $PSScriptRoot 'personal'
 
 function Get-SteamRoots {

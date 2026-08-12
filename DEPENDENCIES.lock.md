@@ -1,0 +1,39 @@
+# Hardened build dependency lock
+
+This branch builds upstream `csgo_gc` commit
+`35855041f70c060928e28b9c000aabf0dfd8c96a` with immutable dependency commits.
+The moving dependencies were resolved at the upstream release time,
+2026-07-20 15:36:31 UTC.
+
+| Dependency | Commit | Source |
+| --- | --- | --- |
+| protobuf | `2798a968c330de223b711e4fe504800280f333fb` | Existing upstream CMake pin |
+| google/benchmark | `5b7683f49e1e9223cf9927b24f6fd3d6bd82e3f8` | Protobuf gitlink; fetched but not built |
+| googletest | `5ec7f0c4a113e2f18ac2c6cc7df51ad6afc24081` | Protobuf gitlink; fetched but not built |
+| cryptopp-cmake | `866aceb8b13b6427a3c4541288ff412ad54f11ea` | `vendor/cryptopp-cmake` submodule |
+| Crypto++ | `fe62c6a03c69fb322faf282c6f69b0b0f0d965eb` | `vendor/cryptopp` submodule |
+| funchook | `b4991704add411ecbc492dae020f375124d51f45` | `vendor/funchook` submodule |
+| diStorm | `ed2d3916a83998c9de83924855a6e9ff40f9f17d` | `vendor/distorm` submodule |
+
+Windows x86 selects diStorm through funchook. Capstone, Zydis, and cryptopp-pem
+are not selected or fetched. Crypto++ is supplied through `CRYPTOPP_SOURCES`;
+diStorm is supplied through CMake's `FETCHCONTENT_SOURCE_DIR_DISTORM` override.
+
+Crypto++ optional assembly is disabled with `CRYPTOPP_DISABLE_ASM=ON`. This
+reduces the code and audit surface and avoids a MASM object-path limitation when
+the immutable Crypto++ checkout is kept outside the wrapper source directory.
+
+## GitHub Actions
+
+The workflow also pins executable Actions to immutable commits:
+
+| Action | Commit | Version label |
+| --- | --- | --- |
+| `actions/checkout` | `11d5960a326750d5838078e36cf38b85af677262` | `v4` |
+| `actions/upload-artifact` | `ea165f8d65b6e75b540449e92b4886f43607fa02` | `v4.6.2` |
+| `actions/download-artifact` | `d3f86a106a0bac45b974a628896c90dbdf5c8093` | `v4` |
+
+Version labels are comments for readability; the workflow executes the exact
+commit hashes. GitHub-hosted runner images and operating-system packages remain
+moving infrastructure, so CI artifacts are auditable convenience builds rather
+than bit-for-bit reproducible binaries.

@@ -19,7 +19,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Apply
 ```
 
 The first command is a dry run. The second downloads this fork's
-`continuous` Windows release, backs up every replaced file under
+`continuous` Windows release (built automatically from the default branch),
+backs up every replaced file under
 `%LOCALAPPDATA%\csgo_gc-homatthew\backups`, installs the reviewed launcher
 and DLL, overlays `personal/`, and verifies SHA-256 hashes.
 

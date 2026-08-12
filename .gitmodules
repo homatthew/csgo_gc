@@ -1,0 +1,12 @@
+[submodule "vendor/cryptopp-cmake"]
+	path = vendor/cryptopp-cmake
+	url = https://github.com/abdes/cryptopp-cmake.git
+[submodule "vendor/cryptopp"]
+	path = vendor/cryptopp
+	url = https://github.com/weidai11/cryptopp.git
+[submodule "vendor/funchook"]
+	path = vendor/funchook
+	url = https://github.com/kubo/funchook.git
+[submodule "vendor/distorm"]
+	path = vendor/distorm
+	url = https://github.com/gdabah/distorm.git
