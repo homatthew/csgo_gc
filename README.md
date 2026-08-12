@@ -3,6 +3,30 @@
 > [!CAUTION]
 > This project is incomplete and not ready for general use.
 
+## Matthew's reproducible legacy setup
+
+This fork tracks current upstream and packages the exact personal inventory and
+GC settings used by Matthew's offline Highrise setup. GitHub Actions builds the
+Windows DLL and launcher from source; opaque local binaries are deliberately not
+committed.
+
+On a fresh Windows machine, install and launch Steam app `4465480` once, clone
+this repository, close CS:GO, and run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Apply
+```
+
+The first command is a dry run. The second downloads this fork's
+`continuous` Windows release, backs up every replaced file under
+`%LOCALAPPDATA%\csgo_gc-homatthew\backups`, installs the reviewed launcher
+and DLL, overlays `personal/`, and verifies SHA-256 hashes.
+
+See [personal/README.md](personal/README.md) for the persisted data boundary and
+[`homatthew/csgo-cfg`](https://github.com/homatthew/csgo-cfg) for the complete
+three-layer restore order.
+
 ## What is this?
 In Valve games, the Game Coordinator (GC) is a backend service most notably responsible for matchmaking and inventory management (like loadouts and skins). This project redirects the GC traffic to a custom, in-process implementation.
 
